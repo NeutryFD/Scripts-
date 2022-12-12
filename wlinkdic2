@@ -1,0 +1,65 @@
+#!/bin/bash
+#!/bin/bash
+#Varwiables 
+declare -a files
+declare INODO
+#main
+declare -i parameter=0; while getopts ":n:" arg; do
+  case $arg in
+    n) name=$OPTARG; let parameter+=1 ;;
+  esac
+done 
+
+function get-inodo(){
+i=0
+while read line ;do
+  files[$i]="$line"
+  ((i++))
+done <<< "$(find / -name $name  2>/dev/null  | xargs ls -id | column --table)"
+}
+
+function menu(){
+echo -e "INDEX\t I-NODO\t\t PATH"
+for element in ${!files[@]}; do
+  echo -e "[$element] \t ${files[$element]}"
+done 
+}
+
+function selecInode(){
+  menu 
+  echo "--------------------------------------------------------------------------------------"
+  read -rp "Indroduce el valor INDEX: " arg
+  if [ $arg -ge 0 ] && [ $arg -le ${#files[@]} ]; then 
+    INODO=$(echo ${files[$arg]} | awk '{print $1}')
+    search
+  else
+    echo "Que hingados metiste de INDEX?"
+  fi
+}
+
+function search(){ 
+  echo -e "****************************************\n[!]i-nodo selecionado --> $(echo $INODO)"
+  echo "--------------------------------------------------------------------------------------"
+  find / -inum $INODO 2>/dev/null | xargs ls -id | column --table  
+}
+
+if [ $parameter -ne 1 ]; then
+  echo -e 'Parametos incorrectos: Indroduce el nombre del fichero \n [*] wlinkdic -n {name}'
+else
+  get-inodo
+fi
+
+
+if [ ${#files[@]} -gt 1 ]; then
+  selecInode
+# search
+elif [ ${#files[@]} -eq 1 ]; then
+  INODO=$(echo ${files[0]} | awk '{print $1}')
+  search
+else
+  echo "Que chingados pusiste de argumentos de INDEX?"
+fi
+
+#busqueda="$(ls -Ri / 2>/dev/null | grep -v / | column --table | sort | awk '{print $1}' | grep $inumber)"
+#find / -inum $busqueda 2>/dev/null
+#echo 'i-node --> '$inumber

@@ -1,0 +1,5 @@
+ #!/bin/bash
+ 
+ nqum=ls -i $2 | awk '{print $1}
+ find / -inum $num
+ 
