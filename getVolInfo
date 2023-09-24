@@ -1,0 +1,119 @@
+#!/bin/bash
+
+#gobalVaribles
+declare OUTPUT_DIRECTORY
+RED=$(tput setaf 1)
+GREEN=$(tput setaf 2)
+RESET_COLOR=$(tput sgr0)
+USER_PATH=("/usr/bin" "/bin" "/usr/local/bin" "/usr/sbin" "/sbin" "$HOME/bin")
+ROOT_PATH=("/usr/sbin" "/sbin" "/usr/local/sbin")
+FULL_PATH=("${USER_PATH[@]}" "${ROOT_PATH[@]}")
+PACKAGES=("net-tools" "iproute2")
+COMMANDS=("netstat -peutan" "ps -axu" "find /proc" "ip addr show" "ip route show" "arp -an")
+
+#----------------------------------------------------------------------------------------------------------#
+
+
+
+function installBinaries(){
+ read -rp "Do you want to install the missing binary? YES/NO:  " arg
+
+        if [ "$arg" == "YES" ]; then
+		echo "Installing ${PACKAGES[*]}"
+
+		for element in "${PACKAGES[@]}"; do
+                	apt install $element -y &>/dev/null
+                done
+		if [ "$(echo $?)" == "0" ]; then
+                        echo -e "\n\n \t\t Instalation Complete..."
+			echo -e "----------------------------------------------------------------- \n"
+		else
+			echo -e "ERROR TO INSTALL $PACKAGES"
+			exit 1
+        	fi
+	fi
+}
+
+
+function checkBinaries(){
+
+	foundBinary=()
+	binaryToInstall=()
+
+	echo -e "\n\n \t\tChecking Binaries..."
+        echo -e "----------------------------------------------------------------- \n"
+
+	for command in "${COMMANDS[@]}"; do
+    		binary=$(echo "$command" | awk '{print $1}')
+		binaries+=("$binary")
+	done
+
+
+	for binary in "${binaries[@]}";do
+		found=false
+
+		for directory in "${FULL_PATH[@]}";do
+			pathBinary="$directory/$binary"
+				if [ -x "$pathBinary"  ];then
+					foundBinary+=("$binary")
+					found=true
+					break
+				fi
+		done
+		if [ "$found" == true ]; then
+			continue 1
+		else
+			binaryToInstall+=("$binary")
+  		fi
+ 	done
+
+	for binary in "${foundBinary[@]}";do
+                printf "%-50s %s\n" "${GREEN} $binary" "Installed ${RESET_COLOR}"
+        done
+
+        if [ "${#binaryToInstall[@]}" -gt 0 ]; then
+                for binary in "${binaryToInstall[@]}";do
+                        printf "%-50s %s\n" "${RED} $binary" "NO FOUND ${RESET_COLOR}"
+                done
+                installBinaries
+
+        fi
+}
+
+function makeExtraction(){
+
+	checkBinaries
+
+ 	echo -e "\n\n \t\tMake Extraction of Information"
+        echo -e "------------------------------------------------------------------ \n"
+
+	for command in "${COMMANDS[@]}"; do
+	clean_command=$(echo $command | sed 's/[\/\ ]/-/g')
+	path_clean="$OUTPUT_DIRECTORY$clean_command.log"
+	echo -n "Exec "
+	eval $command > $path_clean 2>/dev/null
+		if [ "$(echo $?)" -gt 0 ]; then
+			printf "%-50s %s\n" "${RED} $command" "ERROR ${RESET_COLOR}"
+			rm -rf "$path_clean"
+		else
+			printf "%-50s %s\n" "${GREEN} $command" "log save $path_clean ${RESET_COLOR}"
+		fi
+	done
+}
+
+
+#Main
+if [ "$(id -u)" == "0" ]; then
+	declare -i parameter=0; while getopts ":o:" arg;do
+		case $arg in
+      		o) OUTPUT_DIRECTORY=$OPTARG; let parameter+=1 ;;
+    		esac
+  	done
+	if [ $parameter -ne 1 ]; then
+		echo -e "Paratmeters no valids"
+  	else
+    		makeExtraction
+	fi
+else
+ echo -e "NO PERMISSION: run as ROOT."
+fi
