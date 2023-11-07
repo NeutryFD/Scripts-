@@ -1,0 +1,106 @@
+#!/bin/bash
+declare OUTPUT_DIRECTORY
+declare NCOPIES
+declare NAME_BACKUP
+DEFAULT_DIRECTORY="/Backups"
+USER_PATH=("/usr/bin" "/bin" "/usr/local/bin" "/usr/sbin" "/sbin" "$HOME/bin")
+ROOT_PATH=("/usr/sbin" "/sbin" "/usr/local/sbin")
+FULL_PATH=("${USER_PATH[@]}" "${ROOT_PATH[@]}")
+LOG_PATH="/var/log/backup.log"
+BINARY="tar"
+
+
+#$(date +"%Y-%m-%d %H:%M:%S")
+checkLogFile(){
+
+  if [ ! -x $LOG_PATH ]; then
+    touch $LOG_PATH
+  else
+    logger -t "Backups" -p user.err "$LOG_PATH NO EXIST"
+    exit 1 
+  fi
+}
+
+checkDirectory(){
+
+  if [ ! -d $OUTPUT_DIRECTORY ]; then
+    read -rp "The \"$OUTPUT_DIRECTORY\" no exist, do you want to create: YES/NO: " arg
+    if [ "$arg" == "YES" ]; then
+      mkdir -p $OUTPUT_DIRECTORY
+    else
+      echo "DIRECTORY \"$OUTPUT_DIRECTORY\" NO EXIST"
+      return 1
+    fi
+  fi 
+}
+
+checkBinary(){
+
+  for directory in "${FULL_PATH[@]}";do
+			pathBinary="$directory/$BINARY"
+				if [ -x "$pathBinary"  ];then
+          return 0
+					break
+        else
+          echo "$BINARY no found" >> $LOG_PATH
+          return 1
+				fi
+		done
+
+}
+
+makeCopies(){
+  
+  for ((i=1; i<=$NCOPIES; i++)) do
+  name_copy="$OUTPUT_DIRECTORY/$i-$NAME_BACKUP"
+  cp "$OUTPUT_DIRECTORY/$NAME_BACKUP" "$name_copy"
+  done
+
+}
+
+#controlCopies(){ #El control de copias no funciona aún
+#  NCOPIES=$((NCOPIES+1))
+#  oldFiles=$(find "$OUTPUT_DIRECTORY" -type f -exec ls -t {} +)
+#  filesToDelete=$(echo "$oldFiles" | head -n $NCOPIES)
+#  echo "$filesToDelete" | xargs rm
+#}
+makeBackup(){
+
+  checkBinary
+  checkB=$?
+  checkDirectory
+  checkD=$?
+  if [ $checkD -eq 0 ] && [ $checkB -eq 0 ]; then
+    NAME_BACKUP="home_var_etc_$(date +"%Y%m%d_%H%M%S").tgz"
+    echo "$(date +"%Y-%m-%d %H:%M:%S") -- START BACKUP" >> $LOG_PATH
+    tar czpf $OUTPUT_DIRECTORY/$NAME_BACKUP /prueba 2>/dev/null
+    echo "$(date +"%Y-%m-%d %H:%M:%S") -- FINISHED BACKUP" >> $LOG_PATH
+    makeCopies
+  else
+    echo "$(date +"%Y-%m-%d %H:%M:%S") BACKUP FAILED" >> $LOG_PATH
+    exit 1
+  fi
+}
+
+if [ "$(id -u)" == "0" ]; then
+  declare -i parameter=0; while getopts ":d:n:" arg;do
+	  case $arg in
+       		d) OUTPUT_DIRECTORY=$OPTARG; let parameter+=1 ;;
+     	  	n) NCOPIES=$OPTARG; let parameter+=1 ;;
+   		  esac
+ 	  done
+  if [ $parameter -eq 1 ] && [ -n $NCOPIES ]; then
+    
+    OUTPUT_DIRECTORY=$DEFAULT_DIRECTORY
+    echo $OUTPUT_DIRECTORY
+
+  elif [ $parameter -eq 2 ]; then
+    checkLogFile
+    makeBackup
+ #   controlCopies
+  else
+    echo -e "$(date +"%Y-%m-%d %H:%M:%S") Paratmeters no valids" >> $LOG_PATH
+  fi
+else
+ echo -e "$(date +"%Y-%m-%d %H:%M:%S") NO PERMISSION: run as ROOT." >> $LOG_PATH
+fi
