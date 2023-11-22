@@ -1,0 +1,58 @@
+#!/bin/bash
+
+declare DIRECTORIES
+declare nFiles
+declare -i parameters=0; 
+
+############################### COLORS
+RED=$(tput setaf 1)
+GREEN=$(tput setaf 2)
+RESET_COLOR=$(tput sgr0)
+
+
+animate() {
+    local chars="/-\|"
+    while :; do
+      for ((i=0; i<${#chars}; i++)); do
+         echo -en "${GREEN}${chars:$i:1}${RESET_COLOR}"
+         sleep 0.1 
+         echo -en "\b"  # Retrocede el cursor en una posicion
+        done
+    done
+}
+
+makeFiles ()
+{
+  
+  #convert strings of directories to array
+  IFS=" " read -ra DIRECTORIES_ARRAY <<< "$DIRECTORIES"
+  
+  echo -e "\n"
+  echo -en "\t ${GREEN} [*] Creating files ${RESET_COLOR}"
+  animate &
+
+  toKill=$!
+  for element in "${DIRECTORIES_ARRAY[@]}"; do 
+     for  ((i= 0; i < $nFiles; i++)); do
+      declare -i nRamdon=$(shuf -i 500-10000 -n 1) 
+      text=$(printf "A%.s" $(seq 1 $nRamdon))
+      echo $text > "$element/file-$i.txt"
+    done
+  done
+  kill $toKill
+  echo -e "\n"
+}
+
+
+while getopts ":d:n:" arg; do
+  case $arg in
+    d)DIRECTORIES=$OPTARG; let parameters+=1 ;; 
+    n)nFiles=$OPTARG; let parameters+=1 ;;
+  esac
+  done
+
+if [ $parameters -ne 2 ]; then
+  echo -e "Invalid Parameters"
+else
+  makeFiles
+fi
