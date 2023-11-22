@@ -3,7 +3,8 @@
 declare DIRECTORIES
 declare nFiles
 declare -i parameters=0; 
-
+declare DIRECTORIES_ARRAY
+declare Recursive
 ############################### COLORS
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
@@ -24,9 +25,6 @@ animate() {
 makeFiles ()
 {
   
-  #convert strings of directories to array
-  IFS=" " read -ra DIRECTORIES_ARRAY <<< "$DIRECTORIES"
-  
   echo -e "\n"
   echo -en "\t ${GREEN} [*] Creating files ${RESET_COLOR}"
   animate &
@@ -44,15 +42,20 @@ makeFiles ()
 }
 
 
-while getopts ":d:n:" arg; do
+while getopts ":d:n:R:" arg; do
   case $arg in
     d)DIRECTORIES=$OPTARG; let parameters+=1 ;; 
     n)nFiles=$OPTARG; let parameters+=1 ;;
+    R)Recursive=$OPTARG; let parameters+=1 ;;
   esac
   done
 
-if [ $parameters -ne 2 ]; then
-  echo -e "Invalid Parameters"
-else
+if [ $parameters -eq 2 ] && [ -n "$DIRECTORIES" ] && [ -n "$nFiles" ]; then
+  IFS=" " read -ra DIRECTORIES_ARRAY <<< "$DIRECTORIES"
   makeFiles
+elif [ $parameters -eq 2 ] && [ -n "$Recursive" ] && [ -n "$nFiles" ]; then
+  mapfile -t DIRECTORIES_ARRAY < <(find $Recursive -type d)
+  makeFiles
+else
+  echo -e "INVALID PARAMETER"
 fi
