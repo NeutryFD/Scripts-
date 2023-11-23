@@ -28,17 +28,21 @@ makeFiles ()
   echo -e "\n"
   echo -en "\t ${GREEN} [*] Creating files ${RESET_COLOR}"
   animate &
-
   toKill=$!
+
+  declare cont=0;
   for element in "${DIRECTORIES_ARRAY[@]}"; do 
-     for  ((i= 0; i < $nFiles; i++)); do
+     for  ((i=0; i < $nFiles; i++)); do
       declare -i nRamdon=$(shuf -i 500-10000 -n 1) 
       text=$(printf "A%.s" $(seq 1 $nRamdon))
-      echo $text > "$element/file-$i.txt"
+      echo $text > "$element/file-$cont.txt"
+      let cont+=1
     done
   done
   kill $toKill
   echo -e "\n"
+
+  echo -e "\n\t ${GREEN}FILES TOTAL = $cont ${RESET_COLOR} \n"
 }
 
 
