@@ -1,0 +1,226 @@
+#!/bin/bash 
+
+print_usage() {
+        echo "  -p";
+        echo "     prune all volumes ";
+        echo "  -t";
+        echo "     update all volumes to \"actiononpurge=Truncate\"";
+        echo "  -n";
+        echo "     update all volumes to \"actiononpurge=None\"";
+        echo "  -Do";
+        echo "     delete obsolete volume files from the disk (those not listed in catalog)"
+        echo "       NOTE: this operation can take several minutes to complete"
+        echo "  -Dp";
+        echo "     delete all purged volumes from Bacula catalog"
+        echo "  -h";
+        echo "     print this screen";
+        echo ""
+        exit 0
+
+}
+
+
+if [ $# -lt 1 ]; then
+        print_usage
+        exit 3
+fi
+
+
+
+print_found_items (){
+
+  local items=("$@")
+	for i in "${!items[@]}"; do
+        	echo -e " \t\t [$i] ${items[$i]}"
+	done
+    echo -e "\n"
+  if [ ${#items} -eq  0 ]; then
+    echo -e "\t\t No volumens founds "
+    echo -e "\n\n"
+    exit 0
+  fi
+
+}
+
+validate_items (){
+
+  local items=("$@")
+  
+	echo "Write Indexs of volumens to want select (EXAMPLE: 1 2 4) "
+	echo "Write 'ALL' to select all volumens  "	
+	read -rp "Select volumens to delete: " args
+
+	IFS=" " read -ra INDEX_TO_DELETE <<< "$args"
+	
+  re='^[0-9]+$'
+
+	if [ ${#INDEX_TO_DELETE[@]} -gt 0 ]; then 
+    if [ "${INDEX_TO_DELETE[0]}" == "ALL" ]; then
+
+      totalVolumens=${#items[@]}
+      let totalVolumens=$totalVolumens-1
+
+      mapfile -t INDEX_TO_DELETE < <(seq 0 $totalVolumens)
+
+	    echo -e "\n\t\tSelected volumens: \n"	
+
+      for i in "${INDEX_TO_DELETE[@]}" ;do
+		      echo -e "\t\t [$i]  ${items[$i]}"
+	    done
+
+    else
+
+      for element in "${INDEX_TO_DELETE[@]}"; do
+        if ! [[ $element =~ $re ]]; then
+            echo "ERROR: INDEX only integers "
+            echo "Exit... "
+            exit 1 
+        fi
+      done
+      
+	    echo -e "\n\t\tSelected volumens: \n"	
+      for i in "${INDEX_TO_DELETE[@]}" ;do
+		      
+        if [[ ! -z ${items[$i]} ]]; then
+          echo -e "\t\t [$i]  ${items[$i]}"
+        else
+          echo -e "\t\t [-]  The volumen with index $i does not exits"
+          for j in "${!INDEX_TO_DELETE[@]}" ;do
+            if [ "${INDEX_TO_DELETE[$j]}" == "$i" ]; then 
+                unset "INDEX_TO_DELETE[$j]"
+            fi
+          done
+        fi
+	    done
+      echo " "
+    fi
+  else
+     echo "ERROR TO READ INDEX"
+     exit 1
+  fi
+ }
+
+
+
+delete_purged_volumes(){
+  
+        echo ""
+        echo "searching for all purged volumes to be deleted..."
+        echo ""
+
+        mapfile -t PURGED_VOLUMES < <(echo "list volumes" | bconsole | grep "Purged" | awk {'print $4'})
+
+      print_found_items "${PURGED_VOLUMES[@]}"
+
+      validate_items "${PURGED_VOLUMES[@]}"
+      
+      echo -e "\n"
+      echo -n "Are you sure you want to delete all these purged volumes from Bacula catalog ? (yes|no): "
+  
+  read response
+     if [ $response = "yes" ]; then
+       BACULA_BATCH="$(mktemp)"
+       rm -f /tmp/bacula.log
+       echo "@output /tmp/bacula.log" > $BACULA_BATCH
+       
+       for i in "${INDEX_TO_DELETE[@]}" ;do
+		    echo "delete volume=${PURGED_VOLUMES[$i]}" >> $BACULA_BATCH        
+        echo "yes" >> $BACULA_BATCH
+      done
+      
+      bconsole < $BACULA_BATCH
+      rm -f $BACULA_BATCH
+      echo "Done. See the log file /tmp/bacula.log"
+    else 
+      echo "Exit... "
+      exit 0
+  fi  
+}
+
+delete_obsolete_volumes() {
+  
+        VOLUMES_TO_DELETE=()
+        TEMP_FILE="$(mktemp)"
+        echo ""
+        echo "searching for obsolete files on disk. These could be some old volumes deleted from catalog manually..."
+        echo ""
+
+        cd /bacula/backup/Pools/
+        ls -1 | while read pool; do
+                cd /bacula/backup/Pools/$pool
+                if [ `find . -maxdepth 1 -type f | wc -l` -gt 0 ]; then
+                        for i in $pool-*; do
+                          echo "list volume=$i" | bconsole | if  grep --quiet "No results to list" ; then
+                                echo "/bacula/backup/Pools/$pool/$i" >> $TEMP_FILE
+                                
+                                fi
+                        done
+                fi
+        done
+        
+        while IFS= read -r line; do
+          VOLUMES_TO_DELETE+=("$line") 
+        done < "$TEMP_FILE"
+        print_found_items "${VOLUMES_TO_DELETE[@]}"
+        validate_items "${VOLUMES_TO_DELETE[@]}"
+        
+        echo ""
+         echo -n "Are you sure you want to delete these volumes(files) from the disk ? (yes|no): "
+                read response
+                if [ $response = "yes" ]; then
+                    for i in "${INDEX_TO_DELETE[@]}" ;do
+		                  rm -f ${VOLUMES_TO_DELETE[$i]}      
+                      done
+                    echo ""
+                    echo -e "\t\t DONE: following files were deleted: "
+                    for i in "${INDEX_TO_DELETE[@]}" ;do
+                      echo -e "\t\t${VOLUMES_TO_DELETE[$i]}"
+                    done
+                else
+                echo "No volumes to delete found on disk"
+                fi
+        rm -f $TEMP_FILE
+
+        echo -e "\n"
+}
+
+
+# Parse parameters
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h | --help)
+                print_usage
+                exit 0
+                ;;
+        -p)
+                shift
+                prune_all
+                exit 0
+                ;;
+        -t)
+                shift
+                update_volume Truncate
+                exit 0
+                ;;
+        -n)
+                shift
+                update_volume None
+                exit 0
+                ;;
+        -Do)
+                shift
+                delete_obsolete_volumes
+                exit 0
+                ;;
+        -Dp)
+                shift
+                delete_purged_volumes
+                exit 0
+                ;;
+        *)  echo "Unknown argument: $1"
+            print_usage
+            exit 3
+            ;;
+        esac
+done
+exit 1
