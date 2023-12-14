@@ -20,18 +20,23 @@ print_usage() {
 }
 
 
+#################################################################################################
+#                                                                                               #
+#                                           Complements Functions                               #
+#                                                                                               #
+#################################################################################################
+
 if [ $# -lt 1 ]; then
         print_usage
         exit 3
 fi
 
 
-
 print_found_items (){
 
   local items=("$@")
 	for i in "${!items[@]}"; do
-        	echo -e " \t\t [$i] ${items[$i]}"
+    echo -e " \t\t [$i] ${items[$i]}"
 	done
     echo -e "\n"
   if [ ${#items} -eq  0 ]; then
@@ -41,6 +46,7 @@ print_found_items (){
   fi
 
 }
+
 
 validate_items (){
 
@@ -65,16 +71,16 @@ validate_items (){
 	    echo -e "\n\t\tSelected volumens: \n"	
 
       for i in "${INDEX_TO_DELETE[@]}" ;do
-		      echo -e "\t\t [$i]  ${items[$i]}"
+		    echo -e "\t\t [$i]  ${items[$i]}"
 	    done
 
     else
 
       for element in "${INDEX_TO_DELETE[@]}"; do
         if ! [[ $element =~ $re ]]; then
-            echo "ERROR: INDEX only integers "
-            echo "Exit... "
-            exit 1 
+           echo "ERROR: INDEX only integers "
+           echo "Exit... "
+           exit 1 
         fi
       done
       
@@ -87,7 +93,7 @@ validate_items (){
           echo -e "\t\t [-]  The volumen with index $i does not exits"
           for j in "${!INDEX_TO_DELETE[@]}" ;do
             if [ "${INDEX_TO_DELETE[$j]}" == "$i" ]; then 
-                unset "INDEX_TO_DELETE[$j]"
+              unset "INDEX_TO_DELETE[$j]"
             fi
           done
         fi
@@ -101,39 +107,88 @@ validate_items (){
  }
 
 
+#################################################################################################
+#                                                                                               #
+#                                           Functions                                           #
+#                                                                                               #
+#################################################################################################
+
+prune_all() {
+
+        BACULA_BATCH="$(mktemp)"
+
+        echo ""
+        echo "pruning all volumes and let Bacula mark them as purged once the retention periods are expired..."
+        echo ""
+
+        cd /bacula/backup/Pools/
+        ls -1 | while read pool; do
+        cd /bacula/backup/Pools/$pool
+          if [ `find . -maxdepth 1 -type f | wc -l` -gt 0 ]; then
+            for i in $pool-*; do
+              echo "prune volume=$i" >> $BACULA_BATCH;
+              echo "yes" >> $BACULA_BATCH;
+            done
+          fi
+        done
+
+	cat $BACULA_BATCH | grep -o "volume.*"
+	
+	echo -e "\n"
+	
+	read -rp "Confirm actions yes|no: " arg
+	
+  if [ ! -z $arg ];then
+	  if [ "$arg" == "yes" ];then
+      bconsole < $BACULA_BATCH | grep -i "marking it purged"
+      if [ "$?" -gt  0 ];then
+        echo -e "\n \t\t [*]No volumen experited date"
+        echo -e "\t\t [*]No volumen Full status"
+        echo -e "\t\t [*]No volumen Used status"
+		    echo -e "\n \t\t Actions completed \n"
+      fi
+	  else
+		  echo -e " \n Actions canceled \n"
+	  fi
+  else
+    echo -e "ERROR TO READ INPUT"
+  fi
+  rm -f $BACULA_BATCH
+}
+
 
 delete_purged_volumes(){
   
-        echo ""
-        echo "searching for all purged volumes to be deleted..."
-        echo ""
+    echo ""
+    echo "searching for all purged volumes to be deleted..."
+    echo ""
 
-        mapfile -t PURGED_VOLUMES < <(echo "list volumes" | bconsole | grep "Purged" | awk {'print $4'})
+    mapfile -t PURGED_VOLUMES < <(echo "list volumes" | bconsole | grep "Purged" | awk {'print $4'})
 
-      print_found_items "${PURGED_VOLUMES[@]}"
+    print_found_items "${PURGED_VOLUMES[@]}"
 
-      validate_items "${PURGED_VOLUMES[@]}"
+    validate_items "${PURGED_VOLUMES[@]}"
       
-      echo -e "\n"
-      echo -n "Are you sure you want to delete all these purged volumes from Bacula catalog ? (yes|no): "
+    echo -e "\n"
+    echo -n "Are you sure you want to delete all these purged volumes from Bacula catalog ? (yes|no): "
   
-  read response
-     if [ $response = "yes" ]; then
-       BACULA_BATCH="$(mktemp)"
-       rm -f /tmp/bacula.log
-       echo "@output /tmp/bacula.log" > $BACULA_BATCH
+    read response
+  if [ $response = "yes" ]; then
+    BACULA_BATCH="$(mktemp)"
+    rm -f /tmp/bacula.log
+    echo "@output /tmp/bacula.log" > $BACULA_BATCH
        
-       for i in "${INDEX_TO_DELETE[@]}" ;do
-		    echo "delete volume=${PURGED_VOLUMES[$i]}" >> $BACULA_BATCH        
-        echo "yes" >> $BACULA_BATCH
-      done
+    for i in "${INDEX_TO_DELETE[@]}" ;do
+		  echo "delete volume=${PURGED_VOLUMES[$i]}" >> $BACULA_BATCH        
+      echo "yes" >> $BACULA_BATCH
+    done
       
-      bconsole < $BACULA_BATCH
-      rm -f $BACULA_BATCH
-      echo "Done. See the log file /tmp/bacula.log"
-    else 
-      echo "Exit... "
-      exit 0
+    bconsole < $BACULA_BATCH
+    rm -f $BACULA_BATCH
+    echo "Done. See the log file /tmp/bacula.log"
+  else 
+    echo "Exit... "
+    exit 0
   fi  
 }
 
