@@ -4,9 +4,9 @@ print_usage() {
         echo "  -p";
         echo "     prune all volumes ";
         echo "  -t";
-        echo "     update all volumes to \"actiononpurge=Truncate\"";
+        echo "     update all volumes to \"actiononpurge=Truncate\" (NO IMPLEMENTED) ";
         echo "  -n";
-        echo "     update all volumes to \"actiononpurge=None\"";
+        echo "     update all volumes to \"actiononpurge=None\" (NO IMPLEMENTED)";
         echo "  -Do";
         echo "     delete obsolete volume files from the disk (those not listed in catalog)"
         echo "       NOTE: this operation can take several minutes to complete"
@@ -22,7 +22,7 @@ print_usage() {
 
 #################################################################################################
 #                                                                                               #
-#                                           Complements Functions                               #
+#                                  Complements Functions                                        #
 #                                                                                               #
 #################################################################################################
 
@@ -68,11 +68,11 @@ validate_items (){
 
       mapfile -t INDEX_TO_DELETE < <(seq 0 $totalVolumens)
 
-	    echo -e "\n\t\tSelected volumens: \n"	
+	   echo -e "\n\t\tSelected volumens: \n"	
 
       for i in "${INDEX_TO_DELETE[@]}" ;do
-		    echo -e "\t\t [$i]  ${items[$i]}"
-	    done
+		   echo -e "\t\t [$i]  ${items[$i]}"
+	   done
 
     else
 
@@ -84,9 +84,9 @@ validate_items (){
         fi
       done
       
-	    echo -e "\n\t\tSelected volumens: \n"	
+	   echo -e "\n\t\tSelected volumens: \n"	
       for i in "${INDEX_TO_DELETE[@]}" ;do
-		      
+		     
         if [[ ! -z ${items[$i]} ]]; then
           echo -e "\t\t [$i]  ${items[$i]}"
         else
@@ -97,7 +97,7 @@ validate_items (){
             fi
           done
         fi
-	    done
+	   done
       echo " "
     fi
   else
@@ -109,7 +109,7 @@ validate_items (){
 
 #################################################################################################
 #                                                                                               #
-#                                           Functions                                           #
+#                                       Functions                                               #
 #                                                                                               #
 #################################################################################################
 
@@ -139,17 +139,19 @@ prune_all() {
 	read -rp "Confirm actions yes|no: " arg
 	
   if [ ! -z $arg ];then
-	  if [ "$arg" == "yes" ];then
+	 if [ "$arg" == "yes" ];then
       bconsole < $BACULA_BATCH | grep -i "marking it purged"
       if [ "$?" -gt  0 ];then
-        echo -e "\n \t\t [*]No volumen experited date"
-        echo -e "\t\t [*]No volumen Full status"
-        echo -e "\t\t [*]No volumen Used status"
-		    echo -e "\n \t\t Actions completed \n"
+
+        echo -e "\n\t [+]None of the volumes comply with the requirements."
+        echo -e "\n\t\t [!]No volume experited date"
+        echo -e "\t\t [!]No volumen Full status"
+        echo -e "\t\t [!]No volumen Used status"
+		   echo -e "\n \t\t Actions completed \n"
       fi
-	  else
-		  echo -e " \n Actions canceled \n"
-	  fi
+	 else
+		 echo -e " \n Actions canceled \n"
+	 fi
   else
     echo -e "ERROR TO READ INPUT"
   fi
@@ -179,7 +181,7 @@ delete_purged_volumes(){
     echo "@output /tmp/bacula.log" > $BACULA_BATCH
        
     for i in "${INDEX_TO_DELETE[@]}" ;do
-		  echo "delete volume=${PURGED_VOLUMES[$i]}" >> $BACULA_BATCH        
+		 echo "delete volume=${PURGED_VOLUMES[$i]}" >> $BACULA_BATCH        
       echo "yes" >> $BACULA_BATCH
     done
       
@@ -224,7 +226,7 @@ delete_obsolete_volumes() {
                 read response
                 if [ $response = "yes" ]; then
                     for i in "${INDEX_TO_DELETE[@]}" ;do
-		                  rm -f ${VOLUMES_TO_DELETE[$i]}      
+		                 rm -f ${VOLUMES_TO_DELETE[$i]}      
                       done
                     echo ""
                     echo -e "\t\t DONE: following files were deleted: "
